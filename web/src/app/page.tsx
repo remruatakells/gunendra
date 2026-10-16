@@ -7,7 +7,7 @@ import { SongEditor } from "@/components/song-editor";
 import { AddSongModal } from "@/components/add-song-modal";
 import { SongViewer } from "@/components/song-viewer";
 
-type View = "home" | "all" | "favorites" | "trash" | "notebook" | "settings";
+type View = "home" | "all" | "songs" | "favorites" | "trash" | "notebook" | "settings";
 type User = { id: number; name: string; email: string };
 type Dashboard = { counts: { notebooks: number; songs: number; favorites: number }; recent: Song[]; favorites: Song[] };
 type Catalogues = { genres: NamedItem[]; composers: NamedItem[]; artists: NamedItem[]; lyricists: NamedItem[]; tags: NamedItem[] };
@@ -16,6 +16,7 @@ const emptyCatalogues: Catalogues = { genres: [], composers: [], artists: [], ly
 export default function HomePage() {
   const [view, setView] = useState<View>("home");
   const [notebooks, setNotebooks] = useState<Notebook[]>([]);
+  const [allSongs, setAllSongs] = useState<Song[]>([]);
   const [dashboard, setDashboard] = useState<Dashboard>({ counts: { notebooks: 0, songs: 0, favorites: 0 }, recent: [], favorites: [] });
   const [catalogues, setCatalogues] = useState<Catalogues>(emptyCatalogues);
   const [selected, setSelected] = useState<Notebook | null>(null);
@@ -38,8 +39,8 @@ export default function HomePage() {
 
   const refresh = useCallback(async () => {
     try {
-      const [bookData, dashData, catalogueData] = await Promise.all([api<Notebook[]>("/notebooks"), api<Dashboard>("/dashboard"), api<Catalogues>("/catalogues")]);
-      setNotebooks(bookData); setDashboard(dashData); setCatalogues(catalogueData); setError("");
+      const [bookData, songData, dashData, catalogueData] = await Promise.all([api<Notebook[]>("/notebooks"), api<Song[]>("/songs"), api<Dashboard>("/dashboard"), api<Catalogues>("/catalogues")]);
+      setNotebooks(bookData); setAllSongs(songData); setDashboard(dashData); setCatalogues(catalogueData); setError("");
       if (selected) setSelected(await api<Notebook>(`/notebooks/${selected.id}`));
     } catch { setError("API connect theih lo. Laravel server start rawh."); }
     finally { setLoading(false); }
@@ -88,7 +89,7 @@ export default function HomePage() {
   }
 
   const favoriteSongs = useMemo(() => dashboard.favorites, [dashboard]);
-  const pageTitle = view === "home" ? "Good evening" : view === "all" ? "All notebooks" : view === "favorites" ? "Favourites" : view === "trash" ? "Trash" : view === "settings" ? "Settings" : selected?.title ?? "Notebook";
+  const pageTitle = view === "home" ? "Good evening" : view === "all" ? "All notebooks" : view === "songs" ? "All songs" : view === "favorites" ? "Favourites" : view === "trash" ? "Trash" : view === "settings" ? "Settings" : selected?.title ?? "Notebook";
 
   function openSettings() { setView("settings"); setSidebar(false); setAccountMenu(false); }
   async function signOut() {
@@ -108,6 +109,7 @@ export default function HomePage() {
       <div className="brand"><span className="brand-mark"><Music2 size={19} /></span><span>Gunendra Song Notebook</span><button className="mobile-close" onClick={() => setSidebar(false)}><X size={20} /></button></div>
       <nav className="main-nav">
         <NavItem icon={<Home size={18} />} label="Home" active={view === "home"} onClick={() => { setView("home"); setSidebar(false); }} />
+        <NavItem icon={<Music2 size={18} />} label="All songs" active={view === "songs"} count={dashboard.counts.songs} onClick={() => { setView("songs"); setSidebar(false); }} />
         <NavItem icon={<Library size={18} />} label="All notebooks" active={view === "all"} count={dashboard.counts.notebooks} onClick={() => { setView("all"); setSidebar(false); }} />
         <NavItem icon={<Heart size={18} />} label="Favourites" active={view === "favorites"} count={dashboard.counts.favorites} onClick={() => { setView("favorites"); setSidebar(false); }} />
       </nav>
@@ -127,7 +129,7 @@ export default function HomePage() {
       <div className="content">
         <div className="page-heading"><div><p className="eyebrow">{view === "home" ? "GUNENDRA SONG NOTEBOOK" : view.toUpperCase()}</p><h1>{pageTitle}</h1>{view === "home" && <p>Pick up where you left off, or begin a new song.</p>}</div>{view === "notebook" && selected && <div className="page-heading-actions"><button className="button secondary" onClick={() => setEditingNotebook(selected)}><Pencil size={15} /> Edit notebook</button><button className="button primary" onClick={startAddingSong}><Plus size={17} /> Add song</button></div>}</div>
         {error && <div className="error-banner"><span>{error}</span><code>cd api && php artisan serve</code></div>}
-        {loading ? <Loading /> : view === "home" ? <HomeView notebooks={notebooks} recent={dashboard.recent} onAll={() => setView("all")} onNotebook={openNotebook} onSong={setViewing} /> : view === "all" ? <NotebookGrid notebooks={notebooks} onOpen={openNotebook} add={() => setShowNewNotebook(true)} /> : view === "favorites" ? <SongList songs={favoriteSongs} empty="No favourite songs yet." onOpen={setViewing} onFavorite={toggleFavorite} onTrash={trashSong} /> : view === "trash" ? <TrashView onChanged={refresh} /> : view === "settings" && user ? <SettingsView user={user} onUpdated={setUser} onSignOut={() => setShowSignOut(true)} /> : selected ? <NotebookView notebook={selected} onAdd={startAddingSong} onOpen={setViewing} onFavorite={toggleFavorite} onTrash={trashSong} /> : null}
+        {loading ? <Loading /> : view === "home" ? <HomeView notebooks={notebooks} recent={dashboard.recent} onAll={() => setView("all")} onNotebook={openNotebook} onSong={setViewing} /> : view === "all" ? <NotebookGrid notebooks={notebooks} onOpen={openNotebook} add={() => setShowNewNotebook(true)} /> : view === "songs" ? <SongList songs={allSongs} empty="No songs yet." showNotebook onOpen={setViewing} onFavorite={toggleFavorite} onTrash={trashSong} /> : view === "favorites" ? <SongList songs={favoriteSongs} empty="No favourite songs yet." onOpen={setViewing} onFavorite={toggleFavorite} onTrash={trashSong} /> : view === "trash" ? <TrashView onChanged={refresh} /> : view === "settings" && user ? <SettingsView user={user} onUpdated={setUser} onSignOut={() => setShowSignOut(true)} /> : selected ? <NotebookView notebook={selected} onAdd={startAddingSong} onOpen={setViewing} onFavorite={toggleFavorite} onTrash={trashSong} /> : null}
       </div>
     </section>
 
@@ -172,7 +174,7 @@ function NavItem({ icon, label, active, count, onClick }: { icon: React.ReactNod
 function HomeView({ notebooks, recent, onAll, onNotebook, onSong }: { notebooks: Notebook[]; recent: Song[]; onAll: () => void; onNotebook: (b: Notebook) => void; onSong: (s: Song) => void }) { return <><section className="section"><div className="section-title"><div><h2>Your notebooks</h2><p>{notebooks.length} collections · {notebooks.reduce((n, b) => n + (b.songs_count ?? 0), 0)} songs</p></div><button onClick={onAll}>View all <ChevronRight size={15} /></button></div><NotebookGrid notebooks={notebooks.slice(0, 4)} onOpen={onNotebook} /></section><section className="section recent-section"><div className="section-title"><div><h2>Recently edited</h2><p>Continue writing and refining your songs.</p></div></div><div className="recent-cards">{recent.slice(0, 4).map((song) => <button className="recent-card" key={song.id} onClick={() => onSong(song)}><span className="song-number">{song.song_number ?? "—"}</span><div><strong>{song.title}</strong><small>{song.artists?.[0]?.name || song.notebook?.title || "Unknown artist"} · {relativeTime(song.updated_at)}</small><p>{song.content_text || "No lyrics yet"}</p></div><FileText size={18} /></button>)}</div></section></>; }
 function NotebookGrid({ notebooks, onOpen, add }: { notebooks: Notebook[]; onOpen: (b: Notebook) => void; add?: () => void }) { return <div className="notebook-grid">{notebooks.map((book) => <button key={book.id} className="notebook-card" onClick={() => onOpen(book)}><span className="notebook-cover" style={{ "--cover": book.cover_color } as React.CSSProperties}><span className="cover-line" /><BookHeart size={24} /><small>PERSONAL COLLECTION</small><strong>{book.title}</strong></span><span className="notebook-meta"><strong>{book.title}</strong><small>{book.songs_count ?? 0} songs</small></span></button>)}{add && <button className="add-notebook-card" onClick={add}><Plus size={25} /><strong>New notebook</strong><small>Start a new collection</small></button>}</div>; }
 function NotebookView({ notebook, onAdd, onOpen, onFavorite, onTrash }: { notebook: Notebook; onAdd: () => void; onOpen: (s: Song) => void; onFavorite: (s: Song) => void; onTrash: (s: Song) => void }) { if (!notebook.songs?.length) return <><div className="notebook-hero"><span className="mini-cover" style={{ background: notebook.cover_color }}><Music2 /></span><div><p>{notebook.description || "A personal collection of songs."}</p><small>0 songs</small></div></div><div className="empty-state"><Music2 size={30} /><h3>This notebook has no songs yet.</h3><p>Add your first song in a few simple steps.</p><button className="button primary" onClick={onAdd}><Plus size={17} /> Add first song</button></div></>; return <><div className="notebook-hero"><span className="mini-cover" style={{ background: notebook.cover_color }}><Music2 /></span><div><p>{notebook.description || "A personal collection of songs."}</p><small>{notebook.songs.length} songs</small></div></div><SongList songs={notebook.songs} empty="This notebook has no songs yet." onOpen={onOpen} onFavorite={onFavorite} onTrash={onTrash} /></>; }
-function SongList({ songs, empty, onOpen, onFavorite, onTrash }: { songs: Song[]; empty: string; onOpen: (s: Song) => void; onFavorite: (s: Song) => void; onTrash: (s: Song) => void }) {
+function SongList({ songs, empty, showNotebook = false, onOpen, onFavorite, onTrash }: { songs: Song[]; empty: string; showNotebook?: boolean; onOpen: (s: Song) => void; onFavorite: (s: Song) => void; onTrash: (s: Song) => void }) {
   const pageSize = 10;
   const songKey = songs.map((song) => song.id).join(",");
   const [shuffle, setShuffle] = useState<{ songKey: string; ids: number[] } | null>(null);
@@ -218,7 +220,11 @@ function SongList({ songs, empty, onOpen, onFavorite, onTrash }: { songs: Song[]
         <button className="button secondary shuffle-button" onClick={shuffleSongs}><Shuffle size={15} />{shuffled ? "Shuffle again" : "Shuffle"}</button>
       </div>
     </div>
-    <div className="song-table"><div className="song-table-head"><span>#</span><span>Title</span><span>Artist</span><span>Genre</span><span>Updated</span><span /></div>{pageSongs.map((song) => <div className="song-row" key={song.id} onClick={() => onOpen(song)}><span>{song.song_number ?? "—"}</span><span><strong>{song.title}</strong><small>{song.composers?.map((x) => x.name).join(", ") || "Composer unknown"}</small></span><span className="song-artist">{song.artists?.map((x) => x.name).join(", ") || "—"}</span><span>{song.genres?.[0]?.name || "—"}</span><span>{relativeTime(song.updated_at)}</span><span className="row-actions"><button onClick={(e) => { e.stopPropagation(); void onFavorite(song); }} aria-label="Favourite"><Heart size={17} fill={song.is_favorite ? "currentColor" : "none"} /></button><button onClick={(e) => { e.stopPropagation(); void onTrash(song); }} aria-label="Move to trash"><Trash2 size={17} /></button></span></div>)}</div>
+    <div className="song-table"><div className="song-table-head"><span>#</span><span>Title</span><span>Artist</span><span>Genre</span><span>Updated</span><span /></div>{pageSongs.map((song) => {
+      const composer = song.composers?.map((item) => item.name).join(", ") || "Composer unknown";
+      const subtitle = showNotebook ? `${song.notebook?.title || "Notebook unknown"} · ${composer}` : composer;
+      return <div className="song-row" key={song.id} onClick={() => onOpen(song)}><span>{song.song_number ?? "—"}</span><span><strong>{song.title}</strong><small title={subtitle}>{subtitle}</small></span><span className="song-artist">{song.artists?.map((x) => x.name).join(", ") || "—"}</span><span>{song.genres?.[0]?.name || "—"}</span><span>{relativeTime(song.updated_at)}</span><span className="row-actions"><button onClick={(e) => { e.stopPropagation(); void onFavorite(song); }} aria-label="Favourite"><Heart size={17} fill={song.is_favorite ? "currentColor" : "none"} /></button><button onClick={(e) => { e.stopPropagation(); void onTrash(song); }} aria-label="Move to trash"><Trash2 size={17} /></button></span></div>;
+    })}</div>
     {pageCount > 1 && <nav className="song-pagination" aria-label="Song list pages">
       <button onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1}><ChevronLeft size={15} /> Previous</button>
       <span aria-live="polite">Page <strong>{currentPage}</strong> of {pageCount}</span>
